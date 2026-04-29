@@ -1,0 +1,10 @@
+/target
+.DS_Store
+
+# Local-only cargo config (machine-specific Nix-on-Mac libiconv path).
+# See README "Building on Nix-on-Mac" for what it does.
+/.cargo/config.toml
+
+# Design docs / specs from local brainstorming workflows are intentionally
+# kept out of version control.
+docs/superpowers/

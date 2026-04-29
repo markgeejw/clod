@@ -1,0 +1,21 @@
+[package]
+name = "clod"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.84"
+description = "Switch between multiple Claude Code accounts (profiles) with shared skills, plugins, and config."
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/jmage/clod"
+readme = "README.md"
+keywords = ["claude", "cli", "profile", "anthropic"]
+categories = ["command-line-utilities"]
+
+[dependencies]
+anyhow = "1.0.102"
+clap = { version = "=4.5.20", features = ["derive", "env"] }
+clap_complete = "=4.5.38"
+dirs = "6.0.0"
+
+[dev-dependencies]
+assert_cmd = "=2.0.16"
+tempfile = "=3.14.0"
