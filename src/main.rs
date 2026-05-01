@@ -33,18 +33,33 @@ fn dispatch(cli: Cli) -> Result<()> {
     let paths = Paths::resolve(cli.clod_home, cli.claude_home)?;
 
     match cli.command {
-        None => run::exec(&paths, &cli.claude_bin, &[]),
+        None => run::exec(&paths, &cli.claude_bin, cli.profile.as_deref(), &[]),
         Some(Command::Init) => {
             profile::init(&paths)?;
             println!("initialized {}", paths.clod_home.display());
             Ok(())
         }
-        Some(Command::New { name }) => {
-            profile::create(&paths, &name)?;
+        Some(Command::New {
+            name,
+            share_history,
+        }) => {
+            profile::create(&paths, &name, share_history)?;
             println!(
                 "created profile `{}` at {}",
                 name,
                 paths.profile_dir(&name).display()
+            );
+            if share_history {
+                println!("  sharing session history via {}", paths.shared_dir().display());
+            }
+            Ok(())
+        }
+        Some(Command::ShareHistory { name, force }) => {
+            profile::share_history_for(&paths, &name, force)?;
+            println!(
+                "profile `{}` now shares session history via {}",
+                name,
+                paths.shared_dir().display()
             );
             Ok(())
         }
@@ -92,7 +107,9 @@ fn dispatch(cli: Cli) -> Result<()> {
             println!("removed profile `{}`", name);
             Ok(())
         }
-        Some(Command::Run { claude_args }) => run::exec(&paths, &cli.claude_bin, &claude_args),
+        Some(Command::Run { claude_args }) => {
+            run::exec(&paths, &cli.claude_bin, cli.profile.as_deref(), &claude_args)
+        }
         Some(Command::Completions { shell }) => {
             let mut cmd = Cli::command();
             let bin_name = cmd.get_name().to_string();
@@ -116,4 +133,5 @@ function __clod_profile_names
 end
 complete -c clod -n "__fish_clod_using_subcommand switch" -f -a "(__clod_profile_names)"
 complete -c clod -n "__fish_clod_using_subcommand rm" -f -a "(__clod_profile_names)"
+complete -c clod -n "__fish_clod_using_subcommand share-history" -f -a "(__clod_profile_names)"
 "#;

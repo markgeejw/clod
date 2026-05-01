@@ -28,6 +28,10 @@ impl Paths {
         self.profiles_dir().join(name)
     }
 
+    pub fn shared_dir(&self) -> PathBuf {
+        self.clod_home.join("shared")
+    }
+
     pub fn active_file(&self) -> PathBuf {
         self.clod_home.join("active")
     }

@@ -134,6 +134,72 @@ fn unknown_args_forwarded_to_claude() {
 }
 
 #[test]
+fn profile_flag_overrides_active() {
+    let clod_home = TempDir::new().unwrap();
+    let claude_home = TempDir::new().unwrap();
+
+    // a fake `claude` that prints what it received
+    let fake = claude_home.path().join("fakeclaude");
+    fs::write(
+        &fake,
+        "#!/bin/sh\necho \"DIR=$CLAUDE_CONFIG_DIR\"\necho \"ARGS=$*\"\n",
+    )
+    .unwrap();
+    let mut perms = fs::metadata(&fake).unwrap().permissions();
+    use std::os::unix::fs::PermissionsExt;
+    perms.set_mode(0o755);
+    fs::set_permissions(&fake, perms).unwrap();
+
+    clod(&clod_home, &claude_home)
+        .args(["new", "personal"])
+        .assert()
+        .success();
+    clod(&clod_home, &claude_home)
+        .args(["new", "work"])
+        .assert()
+        .success();
+    clod(&clod_home, &claude_home)
+        .args(["switch", "personal"])
+        .assert()
+        .success();
+
+    // --profile work overrides the persisted personal active.
+    let out = clod(&clod_home, &claude_home)
+        .args([
+            "--claude-bin",
+            fake.to_str().unwrap(),
+            "--profile",
+            "work",
+            "--print",
+            "hi",
+        ])
+        .assert()
+        .success();
+    let stdout = String::from_utf8_lossy(&out.get_output().stdout).into_owned();
+    assert!(
+        stdout.contains(&format!(
+            "DIR={}",
+            clod_home.path().join("profiles/work").display()
+        )),
+        "stdout: {stdout}"
+    );
+    assert!(stdout.contains("ARGS=--print hi"), "stdout: {stdout}");
+}
+
+#[test]
+fn profile_flag_for_missing_profile_errors() {
+    let clod_home = TempDir::new().unwrap();
+    let claude_home = TempDir::new().unwrap();
+
+    let out = clod(&clod_home, &claude_home)
+        .args(["--profile", "ghost", "run"])
+        .assert()
+        .failure();
+    let stderr = String::from_utf8_lossy(&out.get_output().stderr).into_owned();
+    assert!(stderr.contains("ghost"), "stderr: {stderr}");
+}
+
+#[test]
 fn current_with_no_profile_errors_helpfully() {
     let clod_home = TempDir::new().unwrap();
     let claude_home = TempDir::new().unwrap();

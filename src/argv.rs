@@ -13,7 +13,7 @@
 use std::ffi::OsString;
 
 /// Global options whose value lives in the next argv slot.
-const VALUED_GLOBALS: &[&str] = &["--clod-home", "--claude-home", "--claude-bin"];
+const VALUED_GLOBALS: &[&str] = &["--clod-home", "--claude-home", "--claude-bin", "--profile"];
 
 /// Rewrite `argv` so unknown args route through the `run` subcommand.
 ///
@@ -182,6 +182,30 @@ mod tests {
         assert_eq!(
             rewrite_strs(&["clod", "--clod-home", "/tmp/c", "--resume", "abc123"]),
             vec!["clod", "--clod-home", "/tmp/c", "run", "--resume", "abc123"]
+        );
+    }
+
+    #[test]
+    fn profile_global_consumed_before_unknown_arg() {
+        assert_eq!(
+            rewrite_strs(&["clod", "--profile", "work", "-p", "hi"]),
+            vec!["clod", "--profile", "work", "run", "-p", "hi"]
+        );
+    }
+
+    #[test]
+    fn profile_global_equals_form_consumed() {
+        assert_eq!(
+            rewrite_strs(&["clod", "--profile=work", "--print"]),
+            vec!["clod", "--profile=work", "run", "--print"]
+        );
+    }
+
+    #[test]
+    fn profile_global_before_known_subcommand_unchanged() {
+        assert_eq!(
+            rewrite_strs(&["clod", "--profile", "work", "current"]),
+            vec!["clod", "--profile", "work", "current"]
         );
     }
 

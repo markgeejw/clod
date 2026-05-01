@@ -31,11 +31,12 @@ own `.credentials.json`, so the two accounts never collide.
 | Command | Behavior |
 | --- | --- |
 | `clod init` | Create `~/.clod/` if missing. |
-| `clod new <name>` | Create a new profile and link the shared assets from `~/.claude`. |
+| `clod new <name> [--share-history]` | Create a new profile and link the shared assets from `~/.claude`. With `-S`/`--share-history`, also share session history (see below). |
 | `clod ls` | List profiles. The active one is marked with `*`. |
 | `clod switch <name>` | Set the active profile. |
 | `clod current` | Print the active profile and where it was resolved from. |
 | `clod rm <name> [-y]` | Delete a profile. Refuses if it is the active profile. |
+| `clod share-history <name> [--force]` | Convert an existing profile to share session history with other share-history profiles. |
 | `clod run [-- args…]` | Explicit form — run `claude` with extra args. |
 | `clod completions <shell>` | Print a shell completion script (`fish`, `bash`, `zsh`, `elvish`, `powershell`). |
 
@@ -51,6 +52,60 @@ clod some-prompt.md             # → claude some-prompt.md
 
 If you ever need to pass a positional arg to claude that happens to share a name with a clod subcommand
 (e.g. literally the word `switch`), use the explicit form: `clod run -- switch`.
+
+### Running with a different profile for one invocation
+
+`--profile <name>` overrides the active profile for a single `clod` invocation, without changing
+`~/.clod/active` or `$CLOD_PROFILE`:
+
+```bash
+clod --profile work -p "summarize this"   # one-off run as `work`, active stays personal
+clod --profile work --resume               # resume a session from `work`
+```
+
+It only affects launching `claude`; `clod ls`, `clod current`, etc. still report the persisted state.
+
+## Sharing session history across profiles
+
+By default each profile's session history (the conversation logs `--resume`
+reads from, plus the typed-prompt recall list) is profile-local — that's the
+whole point of separate `CLAUDE_CONFIG_DIR`s. If you'd rather have profiles
+share session history (e.g. so you can switch from `personal` to `work` after
+hitting an account limit and pick up where you left off), opt in with
+`--share-history`:
+
+```bash
+clod new personal --share-history          # fresh profile, sharing from day one
+clod new work     --share-history          # joins the same shared store
+```
+
+For existing profiles, retrofit one at a time:
+
+```bash
+clod share-history personal                # moves personal's history into ~/.clod/shared/
+clod share-history work                    # merges work's history into the shared store
+```
+
+The first `share-history` call seeds the shared store; later calls *merge* the
+profile's existing history into it (no data loss). Sessions are keyed by UUID
+so file collisions are extremely unlikely in practice; if one happens you'll
+see an error and can pass `--force` to let the profile's copy overwrite the
+shared one.
+
+What gets shared (symlinked into `~/.clod/shared/`):
+
+- `projects/` — per-project conversation logs (this is what `claude --resume` lists from)
+- `history.jsonl` — the typed-prompt recall list
+
+What stays per-profile:
+
+- `.credentials.json` — each profile keeps its own login.
+- `mcp-needs-auth-cache.json`, `cache/`, `backups/`, and any other Claude Code
+  bookkeeping not listed above.
+
+Caveat: messages you send after switching profiles count against the
+**currently active** profile's account, not whichever profile created the
+session. The shared history is just the conversation log on disk.
 
 ## Direnv integration
 
@@ -101,9 +156,10 @@ profile is corrupted — claude just won't see that asset.
 
 `clod` resolves the active profile in this order:
 
-1. `$CLOD_PROFILE` (if non-empty) — the direnv hook.
-2. The contents of `~/.clod/active`.
-3. Error: no active profile, suggesting `clod switch <name>`.
+1. `--profile <name>` (when launching `claude`) — one-off override.
+2. `$CLOD_PROFILE` (if non-empty) — the direnv hook.
+3. The contents of `~/.clod/active`.
+4. Error: no active profile, suggesting `clod switch <name>`.
 
 ## Build notes
 

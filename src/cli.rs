@@ -21,6 +21,11 @@ pub struct Cli {
     /// Path to the `claude` binary (defaults to `claude` on PATH).
     #[arg(long, global = true, value_name = "BIN", default_value = "claude")]
     pub claude_bin: String,
+
+    /// Run with this profile, overriding `$CLOD_PROFILE` and `~/.clod/active`
+    /// for this invocation. Only consulted when launching `claude`.
+    #[arg(long, global = true, value_name = "NAME")]
+    pub profile: Option<String>,
 }
 
 #[derive(Debug, Subcommand)]
@@ -29,7 +34,15 @@ pub enum Command {
     Init,
 
     /// Create a new profile and link the shared assets from `~/.claude`.
-    New { name: String },
+    New {
+        name: String,
+        /// Also link this profile's session history (`projects/`, `history.jsonl`)
+        /// to a shared location so other share-history profiles can `--resume`
+        /// the same sessions. Useful when switching profiles after hitting an
+        /// account limit.
+        #[arg(long, short = 'S')]
+        share_history: bool,
+    },
 
     /// List profiles. The active one is marked with `*`.
     Ls,
@@ -46,6 +59,22 @@ pub enum Command {
         /// Skip the confirmation prompt.
         #[arg(short = 'y', long)]
         yes: bool,
+    },
+
+    /// Share session history (`projects/`, `history.jsonl`) for an existing
+    /// profile by symlinking those entries into `~/.clod/shared/`.
+    ///
+    /// If the shared store is empty, this profile's history seeds it. If the
+    /// shared store already has data, this profile's history is *merged*
+    /// into it (sessions are keyed by UUID so collisions are extremely
+    /// unlikely; `history.jsonl` is appended). `--force` is only needed if
+    /// a true file-level collision occurs.
+    ShareHistory {
+        name: String,
+        /// On a file-level collision during merge, overwrite the shared copy
+        /// with the profile's copy. Rarely needed.
+        #[arg(long)]
+        force: bool,
     },
 
     /// Run `claude` with the active profile. Forwards extra args.

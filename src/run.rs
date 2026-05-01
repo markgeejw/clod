@@ -5,20 +5,33 @@ use std::process::Command;
 
 use anyhow::{Context, Result};
 
-use crate::paths::{exists, Paths};
+use crate::paths::{exists, validate_profile_name, Paths};
 use crate::state;
 
-/// Resolve the active profile, set `CLAUDE_CONFIG_DIR`, and exec `claude`.
-/// Returns only on error — on success the current process is replaced.
-pub fn exec(paths: &Paths, claude_bin: &str, args: &[OsString]) -> Result<()> {
-    let active = state::resolve_active(paths)?;
-    let dir = paths.profile_dir(&active.name);
+/// Resolve the profile to use, set `CLAUDE_CONFIG_DIR`, and exec `claude`.
+/// `profile_override`, when `Some`, takes precedence over `$CLOD_PROFILE` and
+/// the active file. Returns only on error — on success the current process is
+/// replaced.
+pub fn exec(
+    paths: &Paths,
+    claude_bin: &str,
+    profile_override: Option<&str>,
+    args: &[OsString],
+) -> Result<()> {
+    let name = match profile_override {
+        Some(p) => {
+            validate_profile_name(p)?;
+            p.to_string()
+        }
+        None => state::resolve_active(paths)?.name,
+    };
+    let dir = paths.profile_dir(&name);
     if !exists(&dir) {
         anyhow::bail!(
-            "active profile `{}` is missing on disk ({}). create it: `clod new {}`",
-            active.name,
+            "profile `{}` is missing on disk ({}). create it: `clod new {}`",
+            name,
             dir.display(),
-            active.name
+            name
         );
     }
     let err = build_command(claude_bin, &dir, args).exec();
